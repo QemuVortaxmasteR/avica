@@ -1,4 +1,4 @@
-name: Setup Windows Runner + noVNC + Tailscale (Manual Auth)
+name: Setup Windows Runner + TightVNC + Tailscale (Manual Auth)
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set VNC password
+      - name: Set VNC password user
         shell: powershell
         run: |
           net user $env:USERNAME $env:PASSWORD
@@ -26,24 +26,21 @@ jobs:
         run: |
           choco install tightvnc -y
 
-      - name: Configure TightVNC to allow all connections
+      - name: Configure TightVNC password
         shell: powershell
         run: |
-          $regPath = "HKLM:\SOFTWARE\TightVNC\Server"
-          Set-ItemProperty -Path $regPath -Name "LoopbackConnections" -Value 1
-          Set-ItemProperty -Path $regPath -Name "AcceptRfbConnections" -Value 1
+          $pwd = "MR.English2008"
+          $bytes = [System.Text.Encoding]::ASCII.GetBytes($pwd)
+          $md5 = New-Object -TypeName System.Security.Cryptography.MD5CryptoServiceProvider
+          $hash = $md5.ComputeHash($bytes)
+          Set-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "Password" -Value $hash -Type Binary
+          Set-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "AcceptRfbConnections" -Value 1
+          Set-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "LoopbackConnections" -Value 1
 
-      - name: Install noVNC
-        shell: powershell
-        run: |
-          git clone https://github.com/novnc/noVNC.git C:\noVNC
-          pip install websockify
-
-      - name: Open VNC and noVNC firewall ports
+      - name: Open VNC firewall port
         shell: powershell
         run: |
           New-NetFirewallRule -DisplayName "Allow VNC 5900" -Direction Inbound -Protocol TCP -LocalPort 5900 -Action Allow
-          New-NetFirewallRule -DisplayName "Allow noVNC 6080" -Direction Inbound -Protocol TCP -LocalPort 6080 -Action Allow
 
       - name: 1. Install & Connect Tailscale (Manual Auth)
         shell: powershell
@@ -56,18 +53,19 @@ jobs:
           $tsIP = (& "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4 | Select-Object -First 1).Trim()
           "TAILSCALE_IP=$tsIP" | Out-File -Append $env:GITHUB_ENV
 
-      - name: Start VNC and noVNC
+      - name: Start TightVNC server
         shell: powershell
         run: |
-          Start-Process "C:\Program Files\TightVNC\tvnserver.exe"
-          Start-Process powershell -ArgumentList "-NoProfile -Command websockify --web C:\noVNC 6080 0.0.0.0:5900 --allow-origin=*"
+          Start-Process "C:\Program Files\TightVNC\tvnserver.exe" -ArgumentList "-start"
 
+      - name: Display connection info
+        shell: powershell
+        run: |
           Write-Host "=== CONNECTION INFO ==="
-          Write-Host "USERNAME: $env:USERNAME"
-          Write-Host "PASSWORD: $env:PASSWORD"
-          Write-Host "noVNC URL (via Tailscale):"
-          Write-Host "http://$env:TAILSCALE_IP:6080/vnc.html"
-
+          Write-Host "VNC Username: (none, only password is required)"
+          Write-Host "VNC Password: MR.English2008"
+          Write-Host "Connect using VNC Viewer via Tailscale IP:"
+          Write-Host "http://$env:TAILSCALE_IP:5900 or directly in any VNC client"
           while ($true) {
             Start-Sleep -Seconds 600
           }
