@@ -1,0 +1,58 @@
+name: Setup Windows Runner + noVNC + Bore TCP Forwarding
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  setup-gui-runner:
+    runs-on: windows-latest
+    env:
+      USERNAME: runneradmin
+      PASSWORD: runneradmin
+      BORE_SUBDOMAIN: gh-novnc-${{ github.run_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable RDP and set password
+        shell: powershell
+        run: |
+          net user $env:USERNAME $env:PASSWORD
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+      - name: Install TightVNC
+        shell: powershell
+        run: |
+          choco install tightvnc -y
+
+      - name: Install noVNC
+        shell: powershell
+        run: |
+          git clone https://github.com/novnc/noVNC.git C:\noVNC
+          pip install websockify
+
+      - name: Start VNC and noVNC
+        shell: powershell
+        run: |
+          Start-Process "C:\Program Files\TightVNC\tvnserver.exe"
+          Start-Process powershell -ArgumentList "-NoProfile -Command websockify --web C:\noVNC 6080 localhost:5900"
+
+      - name: Start Bore TCP Forwarding
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri https://github.com/borp/bore/releases/latest/download/bore-windows-amd64.exe -OutFile C:\bore.exe
+          Start-Process powershell -ArgumentList "-NoProfile -Command C:\bore.exe tcp2 http://localhost:6080 -subdomain $env:BORE_SUBDOMAIN"
+
+          Write-Host "=== CONNECTION INFO ==="
+          Write-Host "USERNAME: $env:USERNAME"
+          Write-Host "PASSWORD: $env:PASSWORD"
+          Write-Host "noVNC URL (via Bore):"
+          Write-Host "https://$env:BORE_SUBDOMAIN.bore.pub/vnc.html"
+
+          while ($true) {
+            Start-Sleep -Seconds 600
+          }
