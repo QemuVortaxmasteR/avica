@@ -12,13 +12,11 @@ jobs:
     env:
       USERNAME: runneradmin
       PASSWORD: MR.English2008
-      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
-      TAILSCALE_HOSTNAME: gh-win-novnc-${{ github.run_id }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set VNC password
+      - name: Set user password
         shell: powershell
         run: |
           net user $env:USERNAME $env:PASSWORD
@@ -34,17 +32,22 @@ jobs:
           git clone https://github.com/novnc/noVNC.git C:\noVNC
           pip install websockify
 
-      - name: Open VNC and noVNC firewall ports
+      - name: Open VNC ports
         shell: powershell
         run: |
           New-NetFirewallRule -DisplayName "Allow VNC 5900" -Direction Inbound -Protocol TCP -LocalPort 5900 -Action Allow
           New-NetFirewallRule -DisplayName "Allow noVNC 6080" -Direction Inbound -Protocol TCP -LocalPort 6080 -Action Allow
 
-      - name: Install Tailscale
+      - name: Install & Connect Tailscale
         shell: powershell
         run: |
-          choco install tailscale -y
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TAILSCALE_AUTHKEY --hostname=$env:TAILSCALE_HOSTNAME
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi"
+          $installerPath = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=gh-runner-${{ github.run_id }}
+          $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          "TAILSCALE_IP=$tsIP" | Out-File -Append $env:GITHUB_ENV
 
       - name: Start VNC and noVNC
         shell: powershell
@@ -52,13 +55,11 @@ jobs:
           Start-Process "C:\Program Files\TightVNC\tvnserver.exe"
           Start-Process powershell -ArgumentList "-NoProfile -Command websockify --web C:\noVNC 6080 localhost:5900"
 
-          $ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4 | Select-Object -First 1
-
           Write-Host "=== CONNECTION INFO ==="
           Write-Host "USERNAME: $env:USERNAME"
           Write-Host "PASSWORD: $env:PASSWORD"
-          Write-Host "noVNC URL (via Tailscale):"
-          Write-Host "http://$ip:6080/vnc.html"
+          Write-Host "noVNC URL:"
+          Write-Host "http://$env:TAILSCALE_IP:6080/vnc.html"
 
           while ($true) {
             Start-Sleep -Seconds 600
