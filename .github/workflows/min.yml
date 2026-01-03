@@ -26,6 +26,13 @@ jobs:
         run: |
           choco install tightvnc -y
 
+      - name: Configure TightVNC to allow all connections
+        shell: powershell
+        run: |
+          $regPath = "HKLM:\SOFTWARE\TightVNC\Server"
+          Set-ItemProperty -Path $regPath -Name "LoopbackConnections" -Value 1
+          Set-ItemProperty -Path $regPath -Name "AcceptRfbConnections" -Value 1
+
       - name: Install noVNC
         shell: powershell
         run: |
@@ -46,14 +53,14 @@ jobs:
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --hostname=gh-runner-${{ github.run_id }}
-          $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          $tsIP = (& "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4 | Select-Object -First 1).Trim()
           "TAILSCALE_IP=$tsIP" | Out-File -Append $env:GITHUB_ENV
 
       - name: Start VNC and noVNC
         shell: powershell
         run: |
           Start-Process "C:\Program Files\TightVNC\tvnserver.exe"
-          Start-Process powershell -ArgumentList "-NoProfile -Command websockify --web C:\noVNC 6080 localhost:5900"
+          Start-Process powershell -ArgumentList "-NoProfile -Command websockify --web C:\noVNC 6080 0.0.0.0:5900 --allow-origin=*"
 
           Write-Host "=== CONNECTION INFO ==="
           Write-Host "USERNAME: $env:USERNAME"
