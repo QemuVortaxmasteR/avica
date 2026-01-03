@@ -26,16 +26,13 @@ jobs:
         run: |
           choco install tightvnc -y
 
-      - name: Configure TightVNC password
+      - name: Configure TightVNC via CLI
         shell: powershell
         run: |
-          $pwd = "MR.English2008"
-          $bytes = [System.Text.Encoding]::ASCII.GetBytes($pwd)
-          $md5 = New-Object -TypeName System.Security.Cryptography.MD5CryptoServiceProvider
-          $hash = $md5.ComputeHash($bytes)
-          Set-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "Password" -Value $hash -Type Binary
-          Set-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "AcceptRfbConnections" -Value 1
-          Set-ItemProperty -Path "HKLM:\SOFTWARE\TightVNC\Server" -Name "LoopbackConnections" -Value 1
+          cd "C:\Program Files\TightVNC"
+          tvnserver.exe -viewonlypassword Eng2008
+          tvnserver.exe -controlpassword Eng2008
+          sc start tvnserver
 
       - name: Open VNC firewall port
         shell: powershell
@@ -53,19 +50,14 @@ jobs:
           $tsIP = (& "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4 | Select-Object -First 1).Trim()
           "TAILSCALE_IP=$tsIP" | Out-File -Append $env:GITHUB_ENV
 
-      - name: Start TightVNC server
-        shell: powershell
-        run: |
-          Start-Process "C:\Program Files\TightVNC\tvnserver.exe" -ArgumentList "-start"
-
       - name: Display connection info
         shell: powershell
         run: |
           Write-Host "=== CONNECTION INFO ==="
-          Write-Host "VNC Username: (none, only password is required)"
-          Write-Host "VNC Password: MR.English2008"
-          Write-Host "Connect using VNC Viewer via Tailscale IP:"
-          Write-Host "http://$env:TAILSCALE_IP:5900 or directly in any VNC client"
+          Write-Host "VNC Username: (none)"
+          Write-Host "VNC Password: Eng2008"
+          Write-Host "VNC Address:"
+          Write-Host "$env:TAILSCALE_IP:5900"
           while ($true) {
             Start-Sleep -Seconds 600
           }
