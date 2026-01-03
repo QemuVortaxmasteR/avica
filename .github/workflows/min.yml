@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-latest
     env:
       USERNAME: runneradmin
-      PASSWORD: runneradmin
+      PASSWORD: MR.English2008
       BORE_SUBDOMAIN: gh-novnc-${{ github.run_id }}
 
     steps:
