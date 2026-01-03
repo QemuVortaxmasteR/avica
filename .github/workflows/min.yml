@@ -1,4 +1,4 @@
-name: Setup Windows Runner + noVNC + Tailscale
+name: Setup Windows Runner + noVNC + Tailscale (Manual Auth)
 
 on:
   workflow_dispatch:
@@ -38,14 +38,14 @@ jobs:
           New-NetFirewallRule -DisplayName "Allow VNC 5900" -Direction Inbound -Protocol TCP -LocalPort 5900 -Action Allow
           New-NetFirewallRule -DisplayName "Allow noVNC 6080" -Direction Inbound -Protocol TCP -LocalPort 6080 -Action Allow
 
-      - name: 1. Install & Connect Tailscale
+      - name: 1. Install & Connect Tailscale (Manual Auth)
         shell: powershell
         run: |
           $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=gh-runner-${{ github.run_id }}
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --hostname=gh-runner-${{ github.run_id }}
           $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           "TAILSCALE_IP=$tsIP" | Out-File -Append $env:GITHUB_ENV
 
