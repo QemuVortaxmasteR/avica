@@ -1,4 +1,4 @@
-name: Setup Windows Runner + noVNC + Bore TCP Forwarding
+name: Setup Windows Runner + noVNC + Tailscale
 
 on:
   workflow_dispatch:
@@ -12,7 +12,8 @@ jobs:
     env:
       USERNAME: runneradmin
       PASSWORD: MR.English2008
-      BORE_SUBDOMAIN: gh-novnc-${{ github.run_id }}
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+      TAILSCALE_HOSTNAME: gh-win-novnc-${{ github.run_id }}
 
     steps:
       - uses: actions/checkout@v4
@@ -33,11 +34,17 @@ jobs:
           git clone https://github.com/novnc/noVNC.git C:\noVNC
           pip install websockify
 
-      - name: Open VNC firewall ports
+      - name: Open VNC and noVNC firewall ports
         shell: powershell
         run: |
           New-NetFirewallRule -DisplayName "Allow VNC 5900" -Direction Inbound -Protocol TCP -LocalPort 5900 -Action Allow
           New-NetFirewallRule -DisplayName "Allow noVNC 6080" -Direction Inbound -Protocol TCP -LocalPort 6080 -Action Allow
+
+      - name: Install Tailscale
+        shell: powershell
+        run: |
+          choco install tailscale -y
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TAILSCALE_AUTHKEY --hostname=$env:TAILSCALE_HOSTNAME
 
       - name: Start VNC and noVNC
         shell: powershell
@@ -45,17 +52,13 @@ jobs:
           Start-Process "C:\Program Files\TightVNC\tvnserver.exe"
           Start-Process powershell -ArgumentList "-NoProfile -Command websockify --web C:\noVNC 6080 localhost:5900"
 
-      - name: Start Bore TCP Forwarding
-        shell: powershell
-        run: |
-          Invoke-WebRequest -Uri https://github.com/borp/bore/releases/latest/download/bore-windows-amd64.exe -OutFile C:\bore.exe
-          Start-Process powershell -ArgumentList "-NoProfile -Command C:\bore.exe tcp2 http://localhost:6080 -subdomain $env:BORE_SUBDOMAIN"
+          $ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4 | Select-Object -First 1
 
           Write-Host "=== CONNECTION INFO ==="
           Write-Host "USERNAME: $env:USERNAME"
           Write-Host "PASSWORD: $env:PASSWORD"
-          Write-Host "noVNC URL (via Bore):"
-          Write-Host "https://$env:BORE_SUBDOMAIN.bore.pub/vnc.html"
+          Write-Host "noVNC URL (via Tailscale):"
+          Write-Host "http://$ip:6080/vnc.html"
 
           while ($true) {
             Start-Sleep -Seconds 600
