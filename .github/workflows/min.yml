@@ -17,12 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Enable RDP and set password
+      - name: Set VNC password
         shell: powershell
         run: |
           net user $env:USERNAME $env:PASSWORD
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
       - name: Install TightVNC
         shell: powershell
@@ -34,6 +32,12 @@ jobs:
         run: |
           git clone https://github.com/novnc/noVNC.git C:\noVNC
           pip install websockify
+
+      - name: Open VNC firewall ports
+        shell: powershell
+        run: |
+          New-NetFirewallRule -DisplayName "Allow VNC 5900" -Direction Inbound -Protocol TCP -LocalPort 5900 -Action Allow
+          New-NetFirewallRule -DisplayName "Allow noVNC 6080" -Direction Inbound -Protocol TCP -LocalPort 6080 -Action Allow
 
       - name: Start VNC and noVNC
         shell: powershell
